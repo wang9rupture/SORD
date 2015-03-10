@@ -93,6 +93,5 @@ if ( master ) then
     write( 0, * ) 'Finished!'
 end if
 call finalize
-
 end program
 

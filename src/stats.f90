@@ -14,7 +14,7 @@ use m_globals
 use m_collective
 use m_util
 logical, save :: init = .true., dofault = .false.
-integer, save :: fh(18), j = 0
+integer, save :: fh(17), j = 0
 integer :: m, o, i
 real :: rr
 real, save, allocatable, dimension(:,:) :: &
@@ -30,8 +30,8 @@ if ( init ) then
         i = abs( faultnormal )
         if ( ip3(i) == ip3root(i) ) dofault = .true.
     end if
-    allocate( vstats(4,itio), fstats(8,itio), estats(5,itio), &
-        gvstats(4,itio), gfstats(8,itio), gestats(5,itio) )
+    allocate( vstats(4,itio), fstats(8,itio), estats(4,itio), &
+        gvstats(4,itio), gfstats(8,itio), gestats(4,itio) )
     vstats = 0.0
     fstats = 0.0
     estats = 0.0
@@ -64,7 +64,6 @@ if ( modulo( it, itstats ) == 0 ) then
         estats(2,j) = estrain
         estats(3,j) = moment
         estats(4,j) = eradiat
-        estats(5,j) = strdrop
     end if
 end if
 
@@ -100,7 +99,6 @@ if ( j > 0 .and. ( modulo( it, itio ) == 0 .or. it == nt ) ) then
             call rio1( fh(14), gestats(2,:j), 'w', 'stats/estrain', m, o, mpout, verb )
             call rio1( fh(15), gestats(3,:j), 'w', 'stats/moment',  m, o, mpout, verb )
             call rio1( fh(16), gestats(4,:j), 'w', 'stats/eradiat', m, o, mpout, verb )
-            call rio1( fh(17), gestats(5,:j), 'w', 'stats/strdrop', m, o, mpout, verb )
             do i = 1, j
                 if ( gestats(3,i) > 0.0 ) then
                     gestats(3,i) = ( log10( gestats(3,i) ) - 9.05 ) / 1.5
@@ -108,13 +106,21 @@ if ( j > 0 .and. ( modulo( it, itio ) == 0 .or. it == nt ) ) then
                     gestats(3,i) = -999
                 end if
             end do
-            call rio1( fh(18), gestats(3,:j), 'w', 'stats/mw',      m, o, mpout, verb )
+            call rio1( fh(17), gestats(3,:j), 'w', 'stats/mw',      m, o, mpout, verb )
         end if
     end if
     j = 0
     if (sync) call barrier
     iotimer = iotimer + timer( 2 )
 end if
+
+if(master .and. it==nt) then
+write(0,*) 'strain Energy is ',estrain/1e12,'*10^12 J'
+write(0,*) 'Frictional+Fracture Energy is ',efric/1e12,'*10^12 J'
+write(0,*) 'Radiation Energy is ',eradiat/1e12,'*10^12 J'
+write(0,*) 'Stress Drop is ',strdrop/1e6, ' MPa'
+end if
+
 
 end subroutine
 
