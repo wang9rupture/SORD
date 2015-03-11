@@ -2326,11 +2326,14 @@ use m_globals
 use m_collective
 use m_util
 logical, save :: init = .true., dofault = .false.
-integer, save :: fh(18), j = 0
+integer, save :: fh(17), j = 0
 integer :: m, o, i
 real :: rr
 real, save, allocatable, dimension(:,:) :: &
     vstats, fstats, estats, gvstats, gfstats, gestats
+! define variables for rupture area and radius
+real,allocatable,dimension(:,:,:) :: ruparea
+! end
 
 ! Start timer
 if ( verb ) write( 0, * ) 'Statistics'
@@ -2342,8 +2345,8 @@ if ( init ) then
         i = abs( faultnormal )
         if ( ip3(i) == ip3root(i) ) dofault = .true.
     end if
-    allocate( vstats(4,itio), fstats(8,itio), estats(5,itio), &
-        gvstats(4,itio), gfstats(8,itio), gestats(5,itio) )
+    allocate( vstats(4,itio), fstats(8,itio), estats(4,itio), &
+        gvstats(4,itio), gfstats(8,itio), gestats(4,itio) )
     vstats = 0.0
     fstats = 0.0
     estats = 0.0
@@ -2376,7 +2379,6 @@ if ( modulo( it, itstats ) == 0 ) then
         estats(2,j) = estrain
         estats(3,j) = moment
         estats(4,j) = eradiat
-        estats(5,j) = strdrop
     end if
 end if
 
@@ -2412,7 +2414,6 @@ if ( j > 0 .and. ( modulo( it, itio ) == 0 .or. it == nt ) ) then
             call rio1( fh(14), gestats(2,:j), 'w', 'stats/estrain', m, o, mpout, verb )
             call rio1( fh(15), gestats(3,:j), 'w', 'stats/moment',  m, o, mpout, verb )
             call rio1( fh(16), gestats(4,:j), 'w', 'stats/eradiat', m, o, mpout, verb )
-            call rio1( fh(17), gestats(5,:j), 'w', 'stats/strdrop', m, o, mpout, verb )
             do i = 1, j
                 if ( gestats(3,i) > 0.0 ) then
                     gestats(3,i) = ( log10( gestats(3,i) ) - 9.05 ) / 1.5
@@ -2420,13 +2421,27 @@ if ( j > 0 .and. ( modulo( it, itio ) == 0 .or. it == nt ) ) then
                     gestats(3,i) = -999
                 end if
             end do
-            call rio1( fh(18), gestats(3,:j), 'w', 'stats/mw',      m, o, mpout, verb )
+            call rio1( fh(17), gestats(3,:j), 'w', 'stats/mw',      m, o, mpout, verb )
         end if
     end if
     j = 0
     if (sync) call barrier
     iotimer = iotimer + timer( 2 )
 end if
+
+if(master .and. it==nt) then
+allocate(ruparea(size(area,1),size(area,2),size(area,3)))
+ruparea = 0
+where(trup < 1e8 )
+  ruparea = area
+end where
+write(0,*) 'strain Energy is ',estrain/1e12,'*10^12 J'
+write(0,*) 'Frictional+Fracture Energy is ',efric/1e12,'*10^12 J'
+write(0,*) 'Radiation Energy is ',eradiat/1e12,'*10^12 J'
+write(0,*) 'Stress Drop is ',strdrop/1e6, ' MPa'
+write(0,*) 'Rupture radius is', sqrt(sum(ruparea)/pi), 'm'
+end if
+
 
 end subroutine
 
@@ -3959,22 +3974,17 @@ estrain = 0.5 * sum( f2 )
 eradiat = estrain - efric
 
 ! Stress drop 
-f2 = sum((t0-t1)*t2,4)*area
+!t2 = uu(j3:j4,k3:k4,l3:l4,:) - uu(j1:j2,k1:k2,l1:l2,:)
+f2 = sum((ts0 - t3) * t2,4) * area
 call set_halo( f2, 0.0, i1core, i2core)
 strdrop = sum( f2 ) 
 f2 = sqrt(sum(t2*t2,4))*area
 call set_halo( f2, 0.0, i1core, i2core)
-if(sum(f2)<1e-5) then
-strdrop = 0
+if (sum(f2)<1e-5) then
+strdrop=0
 else
 strdrop = strdrop / sum(f2)
 end if
-!if(master) write(0,*) strdrop
-!if(master)  write(0,*) t1(18,18,1,1),t1(18,18,1,2),t1(18,18,1,3)
-!if(master)  write(0,*) t1(18,18,1,1)-t0(18,18,1,1),t1(18,18,1,2)-t0(18,18,1,2),t1(18,18,1,3)-t0(18,18,1,3)
-!if(master)  write(0,*) t2(18,18,1,1),t2(18,18,1,2),t2(18,18,1,3)
-
-
 
 ! Moment (negelcts opening lambda contribution)
 f2 = muf * area * sqrt( sum( t2 * t2, 4 ) )
@@ -4889,6 +4899,5 @@ if ( master ) then
     write( 0, * ) 'Finished!'
 end if
 call finalize
-
 end program
 

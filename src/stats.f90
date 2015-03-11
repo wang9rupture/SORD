@@ -19,6 +19,9 @@ integer :: m, o, i
 real :: rr
 real, save, allocatable, dimension(:,:) :: &
     vstats, fstats, estats, gvstats, gfstats, gestats
+! define variables for rupture area and radius
+real,allocatable,dimension(:,:,:) :: ruparea
+! end
 
 ! Start timer
 if ( verb ) write( 0, * ) 'Statistics'
@@ -115,10 +118,16 @@ if ( j > 0 .and. ( modulo( it, itio ) == 0 .or. it == nt ) ) then
 end if
 
 if(master .and. it==nt) then
+allocate(ruparea(size(area,1),size(area,2),size(area,3)))
+ruparea = 0
+where(trup < 1e8 )
+  ruparea = area
+end where
 write(0,*) 'strain Energy is ',estrain/1e12,'*10^12 J'
 write(0,*) 'Frictional+Fracture Energy is ',efric/1e12,'*10^12 J'
 write(0,*) 'Radiation Energy is ',eradiat/1e12,'*10^12 J'
 write(0,*) 'Stress Drop is ',strdrop/1e6, ' MPa'
+write(0,*) 'Rupture radius is', sqrt(sum(ruparea)/pi), 'm'
 end if
 
 
