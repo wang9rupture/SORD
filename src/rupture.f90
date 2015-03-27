@@ -554,16 +554,12 @@ eradiat = estrain - efric
 
 ! Stress drop 
 !t2 = uu(j3:j4,k3:k4,l3:l4,:) - uu(j1:j2,k1:k2,l1:l2,:)
-f2 = sum((ts0 - t3) * t2,4) * area
+f2 = sum((t0 - t1) * t2,4) * area
 call set_halo( f2, 0.0, i1core, i2core)
-strdrop = sum( f2 ) 
+strdropint = sum( f2 ) 
 f2 = sqrt(sum(t2*t2,4))*area
 call set_halo( f2, 0.0, i1core, i2core)
-if (sum(f2)<1e-5) then
-strdrop=0
-else
-strdrop = strdrop / sum(f2)
-end if
+slipint = sum( f2 )
 
 ! Moment (negelcts opening lambda contribution)
 f2 = muf * area * sqrt( sum( t2 * t2, 4 ) )

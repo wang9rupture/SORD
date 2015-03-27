@@ -4,8 +4,8 @@ real :: &
     amax, vmax, umax, wmax, &
     samax, svmax, sumax, slmax, &
     tsmax, tnmin, tnmax, tarrmax, &
-    efric, estrain, moment,strdrop,&
-    eradiat
+    efric, estrain, moment,strdropint,&
+    eradiat,slipint
 contains
 
 ! Write statistics
@@ -19,8 +19,6 @@ integer :: m, o, i
 real :: rr
 real, save, allocatable, dimension(:,:) :: &
     vstats, fstats, estats, gvstats, gfstats, gestats
-! define variables for rupture area and radius
-real,allocatable,dimension(:,:,:) :: ruparea
 ! end
 
 ! Start timer
@@ -33,8 +31,8 @@ if ( init ) then
         i = abs( faultnormal )
         if ( ip3(i) == ip3root(i) ) dofault = .true.
     end if
-    allocate( vstats(4,itio), fstats(8,itio), estats(4,itio), &
-        gvstats(4,itio), gfstats(8,itio), gestats(4,itio) )
+    allocate( vstats(4,itio), fstats(8,itio), estats(6,itio), &
+        gvstats(4,itio), gfstats(8,itio), gestats(6,itio) )
     vstats = 0.0
     fstats = 0.0
     estats = 0.0
@@ -67,6 +65,8 @@ if ( modulo( it, itstats ) == 0 ) then
         estats(2,j) = estrain
         estats(3,j) = moment
         estats(4,j) = eradiat
+        estats(5,j) = strdropint
+        estats(6,j) = slipint
     end if
 end if
 
@@ -102,6 +102,7 @@ if ( j > 0 .and. ( modulo( it, itio ) == 0 .or. it == nt ) ) then
             call rio1( fh(14), gestats(2,:j), 'w', 'stats/estrain', m, o, mpout, verb )
             call rio1( fh(15), gestats(3,:j), 'w', 'stats/moment',  m, o, mpout, verb )
             call rio1( fh(16), gestats(4,:j), 'w', 'stats/eradiat', m, o, mpout, verb )
+! print part of statistical data            
             do i = 1, j
                 if ( gestats(3,i) > 0.0 ) then
                     gestats(3,i) = ( log10( gestats(3,i) ) - 9.05 ) / 1.5
@@ -111,25 +112,30 @@ if ( j > 0 .and. ( modulo( it, itio ) == 0 .or. it == nt ) ) then
             end do
             call rio1( fh(17), gestats(3,:j), 'w', 'stats/mw',      m, o, mpout, verb )
         end if
+
     end if
     j = 0
     if (sync) call barrier
     iotimer = iotimer + timer( 2 )
 end if
 
-if(master .and. it==nt) then
-allocate(ruparea(size(area,1),size(area,2),size(area,3)))
-ruparea = 0
-where(trup < 1e8 )
-  ruparea = area
-end where
-write(0,*) 'strain Energy is ',estrain/1e12,'*10^12 J'
-write(0,*) 'Frictional+Fracture Energy is ',efric/1e12,'*10^12 J'
-write(0,*) 'Radiation Energy is ',eradiat/1e12,'*10^12 J'
-write(0,*) 'Stress Drop is ',strdrop/1e6, ' MPa'
-write(0,*) 'Rupture radius is', sqrt(sum(ruparea)/pi), 'm'
+if ( it == nt .and. dofault) then
+        estats(1,1) = efric
+        estats(2,1) = estrain
+        estats(3,1) = moment
+        estats(4,1) = eradiat
+        estats(5,1) = strdropint
+        estats(6,1) = slipint
+        call rreduce2( gestats, estats, 'sum', ip2root )
+    if (master) then   
+      write(0,*) 'strain Energy is ',gestats(2,1)/1e12,'*10^12 J'
+      write(0,*) 'Frictional+Fracture Energy is ',gestats(1,1)/1e12,'*10^12 J'
+      write(0,*) 'Radiation Energy is ',gestats(4,1)/1e12,'*10^12 J'
+      write(0,*) 'Moment is ',gestats(3,1)/1e16, '*10^16 J'
+      write(0,*) 'Moment magnitude is ',( log10( gestats(3,1) ) - 9.05 ) / 1.5
+      write(0,*) 'Energy stress drop is', gestats(5,1)/gestats(6,1)/1e6,' MPa'
+    end if
 end if
-
 
 end subroutine
 
